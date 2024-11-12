@@ -1,4 +1,8 @@
 Rails.application.routes.draw do
+
+  post 'chatbot/ask', to: 'chatbot#ask'
+  get 'chatbot/ask', to: 'chatbot#ask'
+  
   mount SolidusAdmin::Engine, at: '/admin', constraints: ->(req) {
     req.cookies['solidus_admin'] != 'false' &&
     req.params['solidus_admin'] != 'false'
@@ -11,8 +15,8 @@ Rails.application.routes.draw do
   get "up" => "rails/health#show", as: :rails_health_check
   mount Spree::Core::Engine, at: '/'
 
-  post 'chatbot/ask', to: 'chatbot#ask'
-  post 'chatbot/ask', to: 'chatbot#ask'
+
+  
   # Defines the root path route ("/")
   # root "posts#index"
 end

@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <title><%= title %></title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="<%= csrf_meta_tags %>">
     <%== meta_data_tags %>
     <%= canonical_tag(current_store.url) %>
     <%= csrf_meta_tags %>
@@ -50,17 +51,27 @@
     <script>
       document.getElementById("chatbot-send").addEventListener("click", async function() {
         const input = document.getElementById("chatbot-input").value;
-        if (!input) return;
+        
+        if (!input.trim()) {
+          alert("El mensaje no puede estar vacío.");
+          return;
+        }
 
         // Mostrar el mensaje del usuario en la interfaz
         const messages = document.getElementById("chatbot-messages");
         messages.innerHTML += `<div style="text-align: right; margin-bottom: 5px;">${input}</div>`;
         document.getElementById("chatbot-input").value = ""; // Limpiar la entrada
 
+        // Obtener el token CSRF desde el meta tag
+        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
         // Enviar el mensaje al servidor
         const response = await fetch("/chatbot/ask", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken  // Agregar el token CSRF aquí
+          },
           body: JSON.stringify({ message: input })
         });
 
