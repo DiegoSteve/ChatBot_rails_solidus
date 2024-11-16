@@ -1,6 +1,6 @@
 Rails.application.routes.draw do
 
-  post 'chatbot/ask', to: 'chatbot#ask'
+  post '/chatbot/ask', to: 'chatbot#ask'
   get 'chatbot/ask', to: 'chatbot#ask'
   
   mount SolidusAdmin::Engine, at: '/admin', constraints: ->(req) {

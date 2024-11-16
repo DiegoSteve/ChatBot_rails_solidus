@@ -13,15 +13,16 @@
     <%= stylesheet_link_tag 'solidus_starter_frontend', media: 'screen' %>
     <%= javascript_importmap_tags %>
     <%= favicon_link_tag '/storefront_favicon.svg', type: 'image/svg+xml', rel: 'icon' %>
-    <%= favicon_link_tag '/storefront_favicon.ico', rel: 'icon', type: 'image/ico' %>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.9.4/lottie.min.js"></script>
+    <script src="https://code.responsivevoice.org/responsivevoice.js?key=v0sPWTkO"></script>
     <script>
       const lsTheme = localStorage.getItem('theme') || 'light';
       document.documentElement.classList.add(lsTheme);
     </script>
     <%= yield :head %>
-  </head>
+  </head> 
 
-  <body class="<%= body_class %>" id="<%= @body_id || 'default' %>" data-turbo="false"  data-controller="drawer">
+  <body class="<%= body_class %>" id="<%= @body_id || 'default' %>" data-turbo="false" data-controller="drawer">
     <div class="min-h-screen grid grid-rows-[auto_1fr_auto]">
       <%= render 'layouts/header', taxons: @taxons, taxon: @taxon %>
       <main>
@@ -38,54 +39,124 @@
         <%= yield %>
       </main>
       <%= render 'layouts/footer' %>
-      <div id="overlay" class="z-30 fixed top-0 left-0 w-full h-full bg-black opacity-50 hidden" data-action="click->drawer#toggle"></div>
+      <div id="overlay" class="z-30 fixed top-0 left:0 w-full h-full bg-black opacity-50 hidden" data-action="click->drawer#toggle"></div>
     </div>
 
     <!-- Chatbot -->
     <div id="chatbot-container" style="position: fixed; bottom: 20px; right: 20px; width: 300px; background-color: white; border: 1px solid #ccc; border-radius: 8px; padding: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);">
+      <!-- Avatar del Chatbot -->
+      <div id="chatbot-avatar" style="width: 100px; height: 100px; margin: 0 auto; text-align: center;"></div>
+      
       <div id="chatbot-messages" style="height: 200px; overflow-y: auto; margin-bottom: 10px;"></div>
       <input type="text" id="chatbot-input" placeholder="Escribe un mensaje..." style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ddd;">
       <button id="chatbot-send" style="width: 100%; margin-top: 5px; padding: 8px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Enviar</button>
+      
+      <!-- Botón para activar/desactivar lectura -->
+      <button id="chatbot-toggle-read" style="width: 100%; margin-top: 5px; padding: 8px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">Activar Lectura</button>
+      
+      <!-- Botón para hablarle al chatbot -->
+      <button id="chatbot-speak" style="width: 100%; margin-top: 5px; padding: 8px; background-color: #17a2b8; color: white; border: none; border-radius: 4px; cursor: pointer;">Hablar</button>
     </div>
 
     <script>
-      document.getElementById("chatbot-send").addEventListener("click", async function() {
-        const input = document.getElementById("chatbot-input").value;
-        
-        if (!input.trim()) {
-          alert("El mensaje no puede estar vacío.");
-          return;
-        }
+      document.addEventListener("DOMContentLoaded", () => {
+        // Variables para controlar la lectura y el reconocimiento de voz
+        let autoReadEnabled = false;
+        const recognition = new webkitSpeechRecognition();
+        recognition.lang = "es-ES"; // Idioma español
+        recognition.continuous = false;
+        recognition.interimResults = false;
 
-        // Mostrar el mensaje del usuario en la interfaz
-        const messages = document.getElementById("chatbot-messages");
-        messages.innerHTML += `<div style="text-align: right; margin-bottom: 5px;">${input}</div>`;
-        document.getElementById("chatbot-input").value = ""; // Limpiar la entrada
-
-        // Obtener el token CSRF desde el meta tag
-        const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
-
-        // Enviar el mensaje al servidor
-        const response = await fetch("/chatbot/ask", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": csrfToken  // Agregar el token CSRF aquí
-          },
-          body: JSON.stringify({ message: input })
+        // Botón para activar/desactivar lectura
+        const toggleReadButton = document.getElementById("chatbot-toggle-read");
+        toggleReadButton.addEventListener("click", () => {
+          autoReadEnabled = !autoReadEnabled;
+          toggleReadButton.textContent = autoReadEnabled ? "Desactivar Lectura" : "Activar Lectura";
+          toggleReadButton.style.backgroundColor = autoReadEnabled ? "#dc3545" : "#28a745"; // Cambiar color del botón
         });
 
-        // Revisar si la respuesta fue exitosa
-        if (response.ok) {
-          const data = await response.json();
-          // Mostrar la respuesta del chatbot en la interfaz
-          messages.innerHTML += `<div style="text-align: left; color: blue; margin-bottom: 5px;">${data.reply}</div>`;
-          messages.scrollTop = messages.scrollHeight;
-        } else {
-          console.error('Error al obtener la respuesta del chatbot');
-        }
+        // Cargar la animación del avatar con Lottie
+        const avatarContainer = document.getElementById("chatbot-avatar");
+        const chatbotAvatar = lottie.loadAnimation({
+          container: avatarContainer,
+          renderer: "svg",
+          loop: true,
+          autoplay: false,
+          path: "<%= asset_path('typing-animation.json') %>" // Reemplaza con la ruta a tu archivo JSON de Lottie
+        });
+
+        // Función para enviar mensajes
+        document.getElementById("chatbot-send").addEventListener("click", async function () {
+          const input = document.getElementById("chatbot-input").value;
+
+          if (!input.trim()) {
+            alert("El mensaje no puede estar vacío.");
+            return;
+          }
+
+          // Mostrar el mensaje del usuario en la interfaz
+          const messages = document.getElementById("chatbot-messages");
+          messages.innerHTML += `<div style="text-align: right; margin-bottom: 5px;">${input}</div>`;
+          document.getElementById("chatbot-input").value = ""; // Limpiar la entrada
+
+          // Mostrar la animación del avatar mientras responde
+          chatbotAvatar.play();
+
+          const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+          try {
+            // Enviar el mensaje al servidor
+            const response = await fetch("/chatbot/ask", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-CSRF-Token": csrfToken
+              },
+              body: JSON.stringify({ message: input })
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              // Mostrar la respuesta del chatbot en la interfaz
+              messages.innerHTML += `<div style="text-align: left; color: blue; margin-bottom: 5px;">${data.response}</div>`;
+              messages.scrollTop = messages.scrollHeight; // Desplazar al final
+
+              // Leer la respuesta en voz alta si la lectura automática está activada
+              if (autoReadEnabled) {
+                responsiveVoice.speak(data.response, "Spanish Female");
+              }
+
+              // Detener la animación después de la respuesta
+              chatbotAvatar.stop();
+            } else {
+              messages.innerHTML += `<div style="text-align: left; color: red; margin-bottom: 5px;">Error: No se pudo obtener una respuesta.</div>`;
+            }
+          } catch (error) {
+            console.error("Error:", error);
+            messages.innerHTML += `<div style="text-align: left; color: red; margin-bottom: 5px;">Error: ${error.message}</div>`;
+            chatbotAvatar.stop();
+          }
+        });
+
+        // Función para hablarle al chatbot
+        document.getElementById("chatbot-speak").addEventListener("click", () => {
+          recognition.start(); // Solicita permiso y activa el reconocimiento de voz
+        });
+
+        recognition.onresult = (event) => {
+          const userMessage = event.results[0][0].transcript; // Captura el texto reconocido
+          document.getElementById("chatbot-input").value = userMessage; // Rellena el input
+          document.getElementById("chatbot-send").click(); // Enviar automáticamente el mensaje
+        };
+
+        recognition.onerror = (event) => {
+          console.error("Error en el reconocimiento de voz:", event.error);
+        };
       });
     </script>
   </body>
 </html>
-        
+
+
+
+

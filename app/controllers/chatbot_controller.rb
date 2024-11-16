@@ -1,34 +1,43 @@
+require 'http'
+
 class ChatbotController < ApplicationController
-  skip_before_action :verify_authenticity_token, only: [:ask]
+  skip_before_action :verify_authenticity_token
 
   def ask
-    message = params[:message]
-
-    if message.blank?
-      render json: { error: 'El mensaje no puede estar vacío' }, status: :unprocessable_entity
-      return
-    end
+    user_message = params[:message]
 
     begin
-      puts ENV['OPENAI_API_KEY'] # Verificación de la clave en la consola
+      # Llamada a la API de OpenAI
+      response = HTTP.post("https://api.openai.com/v1/chat/completions", headers: {
+        "Authorization" => "Bearer #{ENV['OPENAI_API_KEY']}",
+        "Content-Type" => "application/json"
+      }, json: {
+        model: "gpt-3.5-turbo",
+        messages: [
+          { role: "system", content: "You are a helpful assistant for an e-commerce store." },
+          { role: "user", content: user_message }
+        ]
+      })
 
-      client = OpenAI::Client.new(api_key: ENV['OPENAI_API_KEY'])
-      
-      response = client.completions(
-        parameters: {
-          model: "text-davinci-003",
-          prompt: message,
-          max_tokens: 150
-        }
-      )
-
-      Rails.logger.debug("Respuesta de OpenAI: #{response.inspect}")
-      render json: { reply: response["choices"][0]["text"].strip }
-      
-    rescue => e
-      Rails.logger.error("Error procesando la solicitud: #{e.message}")
-      Rails.logger.error("Detalles del error: #{e.backtrace.join("\n")}")
-      render json: { error: "Hubo un problema al procesar tu solicitud: #{e.message}" }, status: :internal_server_error
+      # Parsear la respuesta y verificar su contenido
+      response_body = JSON.parse(response.body.to_s)
+      if response_body["choices"] && response_body["choices"].any?
+        bot_reply = response_body["choices"].first["message"]["content"]
+        render json: { response: bot_reply }
+      else
+        # Respuesta inesperada o vacía
+        Rails.logger.error "Respuesta inválida de OpenAI: #{response_body}"
+        render json: { response: "Lo siento, no pude procesar tu solicitud. Por favor, intenta de nuevo." }, status: 422
+      end
+    rescue StandardError => e
+      # Manejo de errores en caso de problemas con la API o la conexión
+      Rails.logger.error "Error en ChatbotController: #{e.message}"
+      render json: { response: "Hubo un error al procesar tu solicitud. Por favor, intenta más tarde." }, status: 500
     end
   end
 end
+
+
+
+
+
